@@ -1,6 +1,9 @@
 from fastapi import FastAPI
 from motor.motor_asyncio import AsyncIOMotorClient
 from pydantic import BaseModel
+from connect import get_weather
+
+
 
 app = FastAPI()
 
@@ -21,11 +24,20 @@ class Data(BaseModel):
     condition: str
 
 #add data to mongo db
-@app.post("/weather/")
-async def create_item(data: Data):
-    data_dict = data.dict()
+@app.post("/weather/fetch")
+async def create_item(province:str,amphoe:str):
+    get_api = get_weather(province,amphoe)
+    data_dict = {
+        "date": get_api["date"],
+        "latitude": get_api["latitude"], 
+        "longitude": get_api["longitude"],
+        "temperature": get_api["temperature (c)"],
+        "humidity": get_api["humidity (%)"],
+        "rain: float": get_api["rain (mm)"],
+        "condition": get_api["condition"],
+    }
     result = await collection.insert_one(data_dict)
-    return {"id": str(result.inserted_id),"message":"Item added"}
+    return {"id": str(result.inserted_id),"message":"weather data added"}
 
 @app.get("/weather/")
 async def get_item():

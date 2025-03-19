@@ -1,6 +1,6 @@
 from fastapi import FastAPI, HTTPException
 import requests
-
+from datetime import datetime,timezone
 app = FastAPI()
 
 url = "https://data.tmd.go.th/nwpapi/v1/forecast/area/place"
