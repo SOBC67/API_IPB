@@ -21,23 +21,29 @@ class Data(BaseModel):
     temperature: float
     humidity: float
     rain: float
+    slp: float
     condition: str
 
 #add data to mongo db
 @app.post("/weather/fetch")
-async def create_item(province:str,amphoe:str):
-    get_api = get_weather(province,amphoe)
+async def create_item(province:str,amphoe:str,tambon:str):
+    get_api = get_weather(province,amphoe,tambon)
     data_dict = {
         "date": get_api["date"],
         "latitude": get_api["latitude"], 
         "longitude": get_api["longitude"],
         "temperature": get_api["temperature (c)"],
         "humidity": get_api["humidity (%)"],
-        "rain: float": get_api["rain (mm)"],
+        "rain": get_api["rain (mm)"],
+        "slp": get_api["slp (hpa)"],
         "condition": get_api["condition"],
     }
     result = await collection.insert_one(data_dict)
-    return {"id": str(result.inserted_id),"message":"weather data added"}
+    return {"id": str(result.inserted_id),
+            "province":province,
+            "Amphoe":amphoe,
+            "Tambon":tambon,
+            "message":"weather data added"}
 
 @app.get("/weather/")
 async def get_item():

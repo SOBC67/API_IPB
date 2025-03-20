@@ -12,13 +12,14 @@ headers = {
 
 
 @app.get("/weather")
-def get_weather(province: str, amphoe: str):
+def get_weather(province: str, amphoe: str,tambon: str):
     params = {
           "domain":"2", 
           "province": province, 
-          "amphoe": amphoe, 
-          "fields":"tc,rh,rain,cond", 
-          "starttime":"2025-03-19T22:00:00"
+          "amphoe": amphoe,
+          "tambon": tambon, 
+          "fields":"tc,rh,rain,slp,cond", 
+          "starttime":"2025-03-20T22:00:00"
     }
 
     try:
@@ -45,6 +46,7 @@ def get_weather(province: str, amphoe: str):
         tc = temt["data"]["tc"]
         rh = temt["data"]["rh"]
         rain = temt["data"]["rain"]
+        slp = temt["data"]["slp"]
         cond = temt["data"]["cond"]
 
         #condition of con
@@ -62,6 +64,7 @@ def get_weather(province: str, amphoe: str):
             "temperature (c)" : tc,
             "humidity (%)" : rh,
             "rain (mm)" : rain,
+            "slp" : slp,
             "condition" : condd
         }
 
