@@ -1,35 +1,117 @@
 from fastapi import FastAPI, HTTPException
+import ee
 import requests
-from connect import get_weather
+
+ee.Authenticate()
+ee.Initialize(project="ee-sirawichsa")
+
 
 app = FastAPI()
 
-#get lat long from connect.py file
-
 @app.get("/terrain")
-def get_evaluate(province:str, amphoe:str,tambon:str):
-    datas = get_weather(province,amphoe,tambon)
-    lat = datas["latitude"]
-    lon = datas["longitude"]
-    url_terrain = "https://api.open-elevation.com/api/v1/lookup"
+async def get_terrain(lat:float,lon:float,radius:int):
+       #evaluate = await get_elevation(lat,lon)
+       building = await get_building(lat,lon)
+       elevation = await get_elevation(lat,lon)
+       landuse = await get_landuse(lat,lon,radius)
+       natural = await get_natural(lat,lon,radius)
+       return {
+            "Latitude" : lat,
+            "Lontitude" : lon,
+            "ชั้นความสูง(M)": elevation,
+            "สิ่งปลูกสร้าง" : building,
+            "ภูมิประเทศ" : landuse,
+            "พืชพรรณป่าไม้": natural
+       }
 
-    try:
-        params = {"locations": f"{lat},{lon}"}
-        response = requests.get(url_terrain, params=params)
-        data = response.json()
-        evaluate = data["results"][0]["elevation"]
-        return {
-            "province" : province,
-            "amphoe" : amphoe,
-            "tambon" : tambon,
-            "evaluate(M)" : evaluate
-        }
-    except requests.exceptions.RequestException as e:
-        raise HTTPException(status_code=400,detail=e)
-    except ValueError as e:
-        raise HTTPException(status_code=404, detail=e)
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=e)
+async def get_elevation(lat:float,lon:float):
+       url = "https://api.sphere.gistda.or.th/services/geo/elevation"
+       params = {
+              "lon":lon,
+              "lat":lat,
+              "key":"B27769EC4F2B4A4FAA76EBBD7AF131EE"
+              }
+       response = requests.get(url,params=params)
+       data = response.json()
+       elevation = data[0]["elevation"]
+       return elevation
+       
 
 
 
+async def get_building(lat:float,lon:float):
+       url = "https://api.sphere.gistda.or.th/services/poi/search"
+       params = {
+              "lon":lon,
+              "lat":lat,
+              "limit":10,
+              "key":"B27769EC4F2B4A4FAA76EBBD7AF131EE"
+              }
+       response = requests.get(url,params=params)
+       data = response.json()
+       place = []
+       for item in data.get("data",[]):
+              name = item.get("name","ไม่มีชื่อ")
+              id = item.get("id",[])
+              lat = item.get("lat",[])
+              lon = item.get("lon",[]) 
+              tag = item.get("tag",[])[0]
+              place.append({
+                     "id":id,
+                     "ชื่อ":name,
+                     "lat":lat,
+                     "lon":lon,
+                     "ประเภท":tag})
+      
+       return place
+
+async def get_landuse(lat:float,lon:float,radius:int):
+       url = "http://overpass-api.de/api/interpreter"
+       query = f"""
+       [out:json][timeout:25];
+       (
+       node(around:{radius},{lat},{lon})["landuse"];
+       node(around:{radius},{lat},{lon})["natural"];
+       );
+       out body;
+       """
+       response = requests.get(url,params={"data":query})
+       data = response.json()
+       result = []
+       for element in data.get("elements",[]):
+              landuse= element.get("tags",{}).get("landuse") or element.get("tags",{}).get("natural","unknow")
+              result.append({
+                     "id" : element["id"],
+                     "lat": element["lat"],
+                     "lon":element["lon"],
+                     "ภูมิประเทศ":landuse
+              })
+
+       return result
+
+async def get_natural(lat:float,lon:float,radius:int):
+       url = "http://overpass-api.de/api/interpreter"
+       query = f"""
+       [out:json][timeout:25];
+       (
+       node(around:{radius},{lat},{lon})["natural"="tree"];
+       node(around:{radius},{lat},{lon})["natural"="wood"];
+       node(around:{radius},{lat},{lon})["landuse"="forest"];
+       node(around:{radius},{lat},{lon})["landuse"="orchard"];
+       node(around:{radius},{lat},{lon})["landuse"="farmland"];
+       node(around:{radius},{lat},{lon})["landuse"="meadow"];
+       );
+       out body;
+       """
+       response = requests.get(url, params={"data": query})
+       data = response.json()
+       results = []
+       for element in data.get("elements",[]):
+              natural = element.get("tags",{}).get("natural") or element.get("tags",{}).get("landuse","unknow")
+              results.append({
+                     "id":element["id"],
+                     "lat":element["lat"],
+                     "lon":element["lon"],
+                     "พืชพรรณ":natural
+              })
+       return results
