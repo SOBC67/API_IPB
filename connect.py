@@ -18,8 +18,8 @@ def get_weather(province: str, amphoe: str,tambon: str):
           "province": province, 
           "amphoe": amphoe,
           "tambon": tambon, 
-          "fields":"tc,rh,rain,slp,cond", 
-          "starttime":"2025-03-20T22:00:00"
+          "fields":"tc,rh,rain,slp,cond",
+          "starttime":"2025-03-22T22:00:00"
     }
 
     try:
