@@ -1,12 +1,15 @@
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException,Request
+from fastapi.responses import HTMLResponse
 import ee
 import requests
 
+#start earth engine
 ee.Authenticate()
 ee.Initialize(project="ee-sirawichsa")
 
-
+#start fastapi
 app = FastAPI()
+
 
 @app.get("/terrain")
 async def get_terrain(lat:float,lon:float,radius:int):
@@ -115,3 +118,20 @@ async def get_natural(lat:float,lon:float,radius:int):
                      "พืชพรรณ":natural
               })
        return results
+
+#get map don't success now.
+@app.get("/map")
+async def get_map(lat:float,lon:float):
+       url = "https://api.sphere.gistda.or.th/services/snippet/embed"
+       params = {
+              "lon": lon,
+              "lat": lat,
+              "zoom":14,
+              "map": "sphere_streets",
+              "key": "B27769EC4F2B4A4FAA76EBBD7AF131EE",
+              "marker" : True,
+              "poi":"B00486671"
+       }
+       response = requests.get(url,params=params)
+         
+       return HTMLResponse(content=response.text)
