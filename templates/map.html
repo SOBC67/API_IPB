@@ -1,0 +1,404 @@
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <title>GISTDA sphere - Embed map</title>
+  <style>
+    html {
+      height: 100%;
+    }
+
+    body {
+      height: 100%;
+      margin: 0;
+      padding: 0;
+      font: 12px/1.2 sans-serif;
+    }
+
+    #map {
+      width: calc(100%);
+      height: calc(100%);
+    }
+  </style>
+  <script src="https://api.sphere.gistda.or.th/map/?key&#x3D;B27769EC4F2B4A4FAA76EBBD7AF131EE"></script>
+
+  <script>
+    const log = console.log
+      const params = new URLSearchParams(window.location.search)
+      let poiId
+      let poiRes
+      let map
+      let layer
+      let input = {
+        lon: parseFloat(params.get('lon')),
+        lat: parseFloat(params.get('lat')),
+        zoom: parseInt(params.get('zoom')) || 7,
+        locale: params.get('locale') || 'th',
+        map: params.get('map') || 'STREETS',
+        poi: params.get('poi') || null,
+        search: params.get('search') || null,
+        route: params.get('route') || null,
+        key: params.get('key') || null,
+        marker: params.get('marker') || false,
+        tags: params.get('tags') || false
+      }
+
+      let mapOptions
+
+      async function init() {
+        if (window.sphere == undefined) {
+          document.getElementById('map').innerHTML = JSON.stringify({ "statusCode": 400, "message": ["Uncaught sphere API Key Error"], "error": "Bad request" });
+          console.error('Error API key')
+        }
+        let layer = sphere.Layers['STREETS']
+        const layerName = input.map.toUpperCase()
+
+        // Set layer
+        if (input.map) {
+          if (layerName) {
+            layer = sphere.Layers[layerName]
+          }
+        }
+
+        // Get Poi by id
+        if (input.poi) {
+          const { poi, res } = await getPoiById(input.poi)
+          poiId = poi
+          poiRes = res
+        }
+
+        mapOptions = {
+          layer: layer,
+          placeholder: document.getElementById('map'),
+          zoom: input.zoom,
+          lastView: false,
+          language: input.locale
+        }
+
+        // Set lon and lat
+        if (input.lat && input.lon) {
+          mapOptions.location = { lon: input.lon, lat: input.lat }
+        } else {
+          if (input.lat === 0 || input.lon === 0) {
+            mapOptions.location = { lon: input.lon, lat: input.lat }
+          }
+          if (poiId) {
+            mapOptions.location = { lat: poiRes.lat, lon: poiRes.lon }
+          }
+        }
+
+        window.map = new sphere.Map(mapOptions)
+
+        map = window.map
+        
+
+        if (layerName === 'TRAFFIC') {
+          map.Layers.add(sphere.Layers['TRAFFIC'])
+        }
+
+        map.Event.bind('ready', async () => {
+          try {
+            //Show tags of POIs
+            if(input.tags === true || input.tags === 'true') {
+              map.Tags.add('%')
+            }
+
+            if (input.lat && input.lon) {
+              const pois = await getNearbyPois()
+              addPois(pois)
+              if (input.marker === true || input.marker === 'true') {
+                const marker = new sphere.Marker({ lon: input.lon, lat: input.lat });
+                map.Overlays.add(marker);
+              }
+            }
+
+            //Search by keyword
+            if (input.search) {
+              map.Search.search(input.search).then((locations) => {
+                let boundary = null
+                if (locations.data && locations.data.length > 0) {
+                  let lats = []
+                  let lons = []
+                  locations.data.forEach((data) => {
+                    const poi = new sphere.Overlays.Object(data.id)
+                    map.Overlays.load(poi)
+                    lats.push(data.lat)
+                    lons.push(data.lon)
+                  })
+                  boundary = {
+                    minLat: Math.min(...lats),
+                    minLon: Math.min(...lons),
+                    maxLat: Math.max(...lats),
+                    maxLon: Math.max(...lons)
+                  }
+                  let centroidOfBoundary = {
+                    lon: (boundary.maxLon + boundary.minLon) / 2,
+                    lat: (boundary.maxLat + boundary.minLat) / 2
+                  }
+                  if (!input.lat && !input.lon) {
+                    map.location(centroidOfBoundary, false)
+                  }
+                }
+              })
+            }
+
+            //Search by poi
+            if (input.poi) {
+              if (poiId) {
+                map.Overlays.load(poiId)
+              }
+            }
+
+            //Setup route
+            if (input.route) {
+              let route = JSON.parse(input.route)
+              let routeStyles = []
+              let routeStyleOption = {}
+
+              if (route.hasOwnProperty('path')) {
+                let locations = []
+                locations = route.path.split('->')
+                if (locations.length > 1) {
+                  locations.forEach((element) => {
+                    let latLon = element.split(',')
+                    if (latLon.length > 1) {
+                      let coordinate = { lat: parseFloat(latLon[0]), lon: parseFloat(latLon[1]) }
+                      let marker = new sphere.Marker(coordinate)
+                      map.Route.add(marker)
+                    } else {
+                      throw 'mistake format'
+                    }
+                  })
+                  map.Route.search()
+                } else {
+                  throw 'mistake format'
+                }
+              }
+
+              if (route.hasOwnProperty('linecolor')) {
+                let lines = []
+                // route.linecolor = ''
+                if (route.linecolor != '') {
+                  // route.linecolor = `[road:blue|ferry:red]`
+                  let cleanedLineColor = route.linecolor.replace(/\[|\]/g, '')
+                  splitedRouteType = cleanedLineColor.split('|')
+                  if (splitedRouteType.length > 1) {
+                    splitedRouteType.forEach((el) => {
+                      let typeColor = el.split(':')
+
+                      if (typeColor.length > 1) {
+                        routeStyleOption = {
+                          name: typeColor[0].trim(),
+                          style: {
+                            lineColor: typeColor[1].trim() || null
+                          }
+                        }
+                        routeStyles.push(routeStyleOption)
+                      }
+                    })
+                  } else {
+                    let dataHasColon = splitedRouteType[0].split(':')
+                    if (dataHasColon.length > 1) {
+                      routeStyleOption = {
+                        name: typeColor[0].trim(),
+                        style: {
+                          lineColor: typeColor[1].trim() || null
+                        }
+                      }
+                    } else {
+                      routeStyleOption = {
+                        name: 'other',
+                        style: {
+                          lineColor: route.linecolor || null
+                        }
+                      }
+                    }
+                    routeStyles.push(routeStyleOption)
+                  }
+                }
+              }
+
+              if (route.hasOwnProperty('linewidth')) {
+                let lines = []
+                if (route.linewidth != '') {
+                  route.linewidth = `1`
+                  let cleanedLineWidth = route.linewidth.replace(/\[|\]/g, '')
+                  lines = cleanedLineWidth.split('|')
+                  if (lines.length > 1) {
+                    lines.forEach((el) => {
+                      let typeLineWidth = el.split(':')
+                      if (typeLineWidth.length > 1) {
+                        if (routeStyles.length > 0) {
+                          let existedrouteStyleOptionIndex = routeStyles.findIndex(
+                            (x) => x.name === typeLineWidth[0].trim()
+                          )
+                          if (existedrouteStyleOptionIndex > -1) {
+                            routeStyle[existedrouteStyleOptionIndex].style.lineWidth =
+                              parseInt(typeLineWidth[1].trim()) || 0
+                          } else {
+                            routeStyles.push({
+                              name: typeLineWidth[0].trim(),
+                              style: {
+                                lineWidth: parseInt(typeLineWidth[1].trim()) || 0
+                              }
+                            })
+                          }
+                        } else {
+                          routeStyles.push({
+                            name: typeLineWidth[0].trim(),
+                            style: {
+                              lineWidth: parseInt(typeLineWidth[1].trim()) || 0
+                            }
+                          })
+                        }
+                      }
+                    })
+                  } else {
+                    let dataHasColon = lines[0].split(':')
+                    if (dataHasColon.length > 1) {
+                      if (routeStyles.length > 0) {
+                        let existedrouteStyleOptionIndex = routeStyles.findIndex(
+                          (x) => x.name === typeLineWidth[0].trim()
+                        )
+                        if (existedrouteStyleOptionIndex > -1) {
+                          routeStyle[existedrouteStyleOptionIndex].style.lineWidth =
+                            parseInt(dataHasColon[1].trim()) || 1
+                        } else {
+                          routeStyleOption = {
+                            name: dataHasColon[0].trim(),
+                            stye: {
+                              lineWidth: parseInt(dataHasColon[1].trim()) || 1
+                            }
+                          }
+                        }
+                      }
+                      routeStyleOption = {
+                        name: dataHasColon[0].trim(),
+                        style: {
+                          lineColor: dataHasColon[1].trim() || null
+                        }
+                      }
+                    } else {
+                      routeStyleOption = {
+                        name: 'other',
+                        style: { lineWidth: parseInt(route.linewidth) || 1 }
+                      }
+                    }
+                    routeStyles.push(routeStyleOption)
+                  }
+                }
+              }
+
+              if (route.hasOwnProperty('mode')) {
+                let mode = route.mode
+                if (mode === 't' || mode === 'c' || mode === 'd') {
+                  map.Route.mode(mode)
+                } else {
+                  throw 'mistake mode.'
+                }
+              }
+
+              if (route.hasOwnProperty('bordercolor')) {
+                if (routeStyles.length > 0) {
+                  routeStyles.forEach((v) => {
+                    v.style.borderColor = route.bordercolor
+                  })
+                }
+              }
+
+              if (route.hasOwnProperty('type')) {
+                if (route.type) {
+                  map.Route.enableRoute()
+                }
+              }
+
+              setupRouteStyle(routeStyles)
+            }
+          } catch (error) {
+            throw error
+          }
+        })
+      }
+
+      function setupRouteStyle(arr) {
+        if(arr.length > 0){
+          arr.forEach((v, i) => {
+            map.Route.line(v.name, v.style)
+          })
+        }
+      }
+
+      function escapeHtml(someText) {
+        const map = {
+          '&': '&amp;',
+          '<': '&lt;',
+          '>': '&gt;',
+          '"': '&quot;',
+          "'": '&#039;'
+        }
+
+        return someText.replace(/[&<>"']/g, function (m) {
+          return map[m]
+        })
+      }
+
+      function getPoiById(poiId) {
+        return new Promise(async (resolve, reject) => {
+          let poiUrl = ''
+          const poi = new sphere.Overlays.Object(poiId)
+          if (poi.url.toLowerCase().indexOf("key") === -1) {
+            poiUrl = poi.url + '&key=' + input.key
+          } else {
+            poiUrl = poi.url
+          }
+          const res = await sphere.Util.getJson(poiUrl)
+          if (!res) {
+            reject('Poi Error')
+            document.getElementById('map').innerHTML = `<pre>` + JSON.stringify({ "statusCode": 400, "message": ["Poi not found"], "error": "Bad request" }) + `</pre>`;
+          }
+          resolve({ res, poi })
+        })
+      }
+
+      function getNearbyPois() {
+        let host =''
+        if (location.origin.includes('localhost')){
+          host = 'https://api.sphere-dev.gistda.or.th'
+        } else {
+          host = location.origin
+        }
+        let sphereWsUrl = new URL(host + '/services/poi/search')
+        sphereWsUrl.searchParams.set('lon', input.lon)
+        sphereWsUrl.searchParams.set('lat', input.lat)
+        sphereWsUrl.searchParams.set('key', input.key)
+        return new Promise(async (resolve, reject) => {
+          let pois = []
+          const res = await sphere.Util.getJson(sphereWsUrl)
+          if (!res) {
+            reject('Poi Error')
+            document.getElementById('map').innerHTML = `<pre>` + JSON.stringify({ "statusCode": 400, "message": ["Poi not found"], "error": "Bad request" }) + `</pre>`;
+          } else {
+            res.data.filter(data => {
+              if (data.type === "other" && data.id.startsWith('P')) {
+                pois.push(data.id)
+              }
+            });
+          }
+          resolve({ pois })
+        })
+      }
+
+      function addPois(pois = []) {
+        pois.pois.forEach((v) => {
+          const poi = new sphere.Overlays.Object(v)
+          map.Overlays.load(poi)
+        })
+      }
+  </script>
+</head>
+
+<body onload="init()" onunload="destroy()">
+  <div id="map"></div>
+</body>
+
+</html>
