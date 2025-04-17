@@ -21,9 +21,9 @@ def get_news(region='south'):
     print("✔ เปิดเว็บสำเร็จ")
 
     articles = driver.find_elements(By.CSS_SELECTOR, "div.css-1r5hw10 a")
-    print(f"📰 เจอ {len(articles)} ข่าว")
+    print(f"เจอ {len(articles)} ข่าว")
 
-    for a in articles[:3]:  # เอาแค่ 3 ข่าว
+    for a in articles[::]:  # เอาแค่ 3 ข่าว
         title = a.text.strip()
         link = a.get_attribute("href")
         print(f"หัวข้อ: {title}")
