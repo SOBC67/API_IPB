@@ -4,7 +4,7 @@ import ee
 import requests
 
 #start earth engine
-ee.Authenticate(auth_mode="notebook")
+ee.Authenticate(auth_mode="paste")
 ee.Initialize(project="ee-sirawichsa")
 
 #start fastapi
