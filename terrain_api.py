@@ -4,7 +4,7 @@ import ee
 import requests
 
 #start earth engine
-ee.Authenticate(auth_mode='paste')
+ee.Authenticate()
 ee.Initialize(project="ee-sirawichsa")
 
 #start fastapi
@@ -119,6 +119,7 @@ async def get_natural(lat:float,lon:float,radius:int):
               })
        return results
 
+"""
 #get map don't success now.
 @app.get("/map")
 async def get_map(lat:float,lon:float):
@@ -135,3 +136,4 @@ async def get_map(lat:float,lon:float):
        response = requests.get(url,params=params)
          
        return HTMLResponse(content=response.text)
+"""

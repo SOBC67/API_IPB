@@ -1,6 +1,8 @@
 from selenium import webdriver
+from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.common.by import By
 from selenium.webdriver.chrome.options import Options
+from webdriver_manager.chrome import ChromeDriverManager
 import time
 
 def get_news(region='south'):
@@ -14,7 +16,10 @@ def get_news(region='south'):
     options.add_argument('--allow-running-insecure-content')
     options.add_argument('--disable-web-security')
 
+    # webdriver-manager
+    service = Service(ChromeDriverManager().install())
     driver = webdriver.Chrome(options=options)
+    
     driver.get(url)
     time.sleep(2)
 

@@ -1,7 +1,7 @@
 from fastapi import FastAPI
 from motor.motor_asyncio import AsyncIOMotorClient
 from pydantic import BaseModel
-from connect import get_weather
+from IDP_part_1 import get_weather
 from terrain_api import get_terrain
 
 
